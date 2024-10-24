@@ -1,0 +1,263 @@
+services:
+  smtp:
+    restart: unless-stopped
+    platform: linux/amd64
+    image: ${SMTP_IMAGE:-tianon/exim4}
+    volumes:
+      - sentry-smtp:/var/spool/exim4
+      - sentry-smtp-log:/var/log/exim4
+
+  memcached:
+    restart: unless-stopped
+    image: ${MEMCACHED_IMAGE:-memcached:1.6.26-alpine}
+    command: ["-I", "${SENTRY_MAX_EXTERNAL_SOURCEMAP_SIZE:-1M}"]
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: echo stats | nc 127.0.0.1 11211
+
+  redis:
+    restart: unless-stopped
+    image: ${REDIS_IMAGE:-redis:6.2.14-alpine}
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: redis-cli ping
+    volumes:
+      - sentry-redis:/data
+
+  postgres:
+    restart: unless-stopped
+    image: ${POSTGRES_IMAGE:-postgres:14.11}
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+    command:
+      [
+        "postgres",
+        "-c",
+        "max_connections=${POSTGRES_MAX_CONNECTIONS:-100}",
+      ]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-sentry}
+    volumes:
+      - sentry-postgres:/var/lib/postgresql/data
+
+  kafka:
+    restart: unless-stopped
+    image: ${KAFKA_IMAGE:-confluentinc/cp-kafka:7.6.1}
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS:-1001@127.0.0.1:29093}
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID:-1001}
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+      KAFKA_LISTENERS: ${KAFKA_LISTENERS:-PLAINTEXT://0.0.0.0:29092,INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093}
+      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS:-PLAINTEXT://127.0.0.1:29092,INTERNAL://kafka:9093,EXTERNAL://kafka:9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
+      KAFKA_MESSAGE_MAX_BYTES: ${KAFKA_MESSAGE_MAX_BYTES:-50000000}
+      KAFKA_MAX_REQUEST_SIZE: ${KAFKA_MAX_REQUEST_SIZE:-50000000}
+    volumes:
+      - sentry-kafka:/var/lib/kafka/data
+      - sentry-kafka-log:/var/lib/kafka/log
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
+
+  clickhouse:
+    restart: unless-stopped
+    image: ${CLICKHOUSE_IMAGE:-altinity/clickhouse-server:23.8.11.29.altinitystable}
+    environment:
+      MAX_MEMORY_USAGE_RATIO: ${CLICKHOUSE_MAX_MEMORY_RATIO:-0.3}
+    volumes:
+      - sentry-clickhouse:/var/lib/clickhouse
+      - sentry-clickhouse-log:/var/log/clickhouse-server
+      - ${CLICKHOUSE_CONFIG_PATH:-./clickhouse/config.xml}:/etc/clickhouse-server/config.d/sentry.xml:ro
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: ["CMD-SHELL", "wget -nv -t1 --spider 'http://localhost:8123/' || exit 1"]
+
+  snuba-api:
+    restart: unless-stopped
+    image: ${SNUBA_IMAGE:-getsentry/snuba:latest}
+    environment:
+      SNUBA_SETTINGS: self_hosted
+      CLICKHOUSE_HOST: clickhouse
+      DEFAULT_BROKERS: kafka:9092
+      REDIS_HOST: redis
+      UWSGI_MAX_REQUESTS: ${UWSGI_MAX_REQUESTS:-10000}
+      UWSGI_DISABLE_LOGGING: ${UWSGI_DISABLE_LOGGING:-true}
+
+  snuba-consumer:
+    restart: unless-stopped
+    image: ${SNUBA_IMAGE:-getsentry/snuba:latest}
+    command: consumer --storage errors --consumer-group snuba-consumers --auto-offset-reset=latest --max-batch-time-ms 750
+    environment:
+      SNUBA_SETTINGS: self_hosted
+      CLICKHOUSE_HOST: clickhouse
+      DEFAULT_BROKERS: kafka:9092
+      REDIS_HOST: redis
+
+  symbolicator:
+    restart: unless-stopped
+    image: ${SYMBOLICATOR_IMAGE:-getsentry/symbolicator:latest}
+    volumes:
+      - sentry-symbolicator:/data
+      - ${SYMBOLICATOR_CONFIG_PATH:-./symbolicator}:/etc/symbolicator:ro
+    command: run -c /etc/symbolicator/config.yml
+
+  web:
+    restart: unless-stopped
+    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    environment: &sentry_env
+      SENTRY_CONF: /etc/sentry
+      SNUBA: http://snuba-api:1218
+      REDIS_HOST: redis
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-sentry}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
+      SENTRY_REDIS_HOST: redis
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_EMAIL_HOST: ${SENTRY_EMAIL_HOST:-smtp}
+      SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL:-sentry@localhost}
+      SENTRY_EVENT_RETENTION_DAYS: ${SENTRY_EVENT_RETENTION_DAYS:-90}
+      SENTRY_FEATURES: ${SENTRY_FEATURES:-}
+      SENTRY_EXTRA_CONF: ${SENTRY_EXTRA_CONF:-}
+    volumes:
+      - sentry-data:/data
+      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+    ports:
+      - :9000
+    healthcheck:
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-5}
+      test: ["CMD", "sentry", "check", "--level", "fatal"]
+
+  cron:
+    restart: unless-stopped
+    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    command: run cron
+    environment:
+      <<: *sentry_env
+    volumes:
+      - sentry-data:/data
+      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+
+  worker:
+    restart: unless-stopped
+    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    command: run worker
+    environment:
+      <<: *sentry_env
+    volumes:
+      - sentry-data:/data
+      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+
+  ingest-consumer:
+    restart: unless-stopped
+    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    command: run consumer ingest-events --consumer-group ingest-consumer
+    environment:
+      <<: *sentry_env
+    volumes:
+      - sentry-data:/data
+      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+
+  post-process-forwarder:
+    restart: unless-stopped
+    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    command: run consumer post-process-forwarder --consumer-group post-process-forwarder
+    environment:
+      <<: *sentry_env
+    volumes:
+      - sentry-data:/data
+      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+
+  relay:
+    restart: unless-stopped
+    image: ${RELAY_IMAGE:-getsentry/relay:latest}
+    volumes:
+      - ${RELAY_CONFIG_PATH:-./relay}:/etc/relay:ro
+    ports:
+      - :3000
+    environment:
+      RELAY_MODE: ${RELAY_MODE:-managed}
+      RELAY_UPSTREAM: http://web:9000
+      RELAY_HOST: 0.0.0.0
+
+  nginx:
+    restart: unless-stopped
+    image: ${NGINX_IMAGE:-nginx:1.25.4-alpine}
+    ports:
+      - :80
+    volumes:
+      - ${NGINX_CONFIG_PATH:-./nginx}:/etc/nginx:ro
+      - sentry-nginx-cache:/var/cache/nginx
+      - sentry-nginx-www:/var/www
+
+  # Feature Complete Services
+  snuba-replacer:
+    restart: unless-stopped
+    image: ${SNUBA_IMAGE:-getsentry/snuba:latest}
+    command: replacer --storage errors --auto-offset-reset=latest
+    environment:
+      SNUBA_SETTINGS: self_hosted
+      CLICKHOUSE_HOST: clickhouse
+      DEFAULT_BROKERS: kafka:9092
+      REDIS_HOST: redis
+    profiles:
+      - feature-complete
+
+  snuba-subscription:
+    restart: unless-stopped
+    image: ${SNUBA_IMAGE:-getsentry/snuba:latest}
+    command: subscriptions-scheduler-executor --dataset events --auto-offset-reset=latest
+    environment:
+      SNUBA_SETTINGS: self_hosted
+      CLICKHOUSE_HOST: clickhouse
+      DEFAULT_BROKERS: kafka:9092
+      REDIS_HOST: redis
+    profiles:
+      - feature-complete
+
+  vroom:
+    restart: unless-stopped
+    image: ${VROOM_IMAGE:-getsentry/vroom:latest}
+    environment:
+      SENTRY_KAFKA_BROKERS: kafka:9092
+      SENTRY_BUCKET_PROFILES: file://localhost//var/lib/sentry-profiles
+      SENTRY_SNUBA_HOST: http://snuba-api:1218
+    volumes:
+      - sentry-vroom:/var/lib/sentry-profiles
+    profiles:
+      - feature-complete
+
+volumes:
+  sentry-data:
+  sentry-postgres:
+  sentry-redis:
+  sentry-kafka:
+  sentry-clickhouse:
+  sentry-symbolicator:
+  sentry-smtp:
+  sentry-smtp-log:
+  sentry-kafka-log:
+  sentry-clickhouse-log:
+  sentry-nginx-cache:
+  sentry-nginx-www:
+  sentry-vroom:

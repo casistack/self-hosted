@@ -195,18 +195,27 @@ services:
       - sentry-data:/data
 
   relay:
-    restart: unless-stopped
-    image: ${RELAY_IMAGE:-getsentry/relay:latest}
-    expose:
-      - "3000"
-    environment:
-      RELAY_MODE: ${RELAY_MODE:-managed}
-      RELAY_UPSTREAM: http://web:9000
-      RELAY_HOST: 0.0.0.0
-    volumes:
-      - type: bind
-        source: ./relay
-        target: /etc/relay
+      restart: unless-stopped
+      build:
+        context: .
+        dockerfile: Dockerfile.relay
+      expose:
+        - "3000"
+      environment:
+        RELAY_MODE: ${RELAY_MODE:-managed}
+        RELAY_UPSTREAM: http://web:9000
+        RELAY_HOST: 0.0.0.0
+        # Add credentials as environment variables
+        RELAY_SECRET_KEY: ${RELAY_SECRET_KEY}
+        RELAY_PUBLIC_KEY: ${RELAY_PUBLIC_KEY}
+        RELAY_ID: ${RELAY_ID}
+      volumes:
+        - sentry-relay:/etc/relay
+      healthcheck:
+        interval: ${HEALTHCHECK_INTERVAL:-30s}
+        timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+        retries: ${HEALTHCHECK_RETRIES:-5}
+        test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/relay/healthcheck/"]
 
   # Feature Complete Services
   snuba-replacer:
@@ -257,3 +266,4 @@ volumes:
   sentry-kafka-log:
   sentry-clickhouse-log:
   sentry-vroom:
+  sentry-relay:

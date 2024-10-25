@@ -126,14 +126,22 @@ services:
     environment: &sentry_env
       SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
       POSTGRES_DB: ${POSTGRES_DB:-sentry}
+      SENTRY_DB_NAME: ${POSTGRES_DB:-sentry}
+      SENTRY_DB_USER: ${POSTGRES_DB:-sentry} 
+      SENTRY_POSTGRES_DB: ${POSTGRES_DB:-sentry}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      SENTRY_POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SENTRY_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL:-sentry@localhost}
       SENTRY_EVENT_RETENTION_DAYS: ${SENTRY_EVENT_RETENTION_DAYS:-30}
       SENTRY_FEATURES: ${SENTRY_FEATURES:-organizations:metrics,organizations:performance-view}
       REDIS_HOST: redis
+      SENTRY_REDIS_HOST: redis
       REDIS_PORT: 6379
+      SENTRY_REDIS_PORT: 6379
       REDIS_PASSWORD: ""
+      SENTRY_REDIS_PASSWORD: ""
       SENTRY_CONF: /etc/sentry
       SENTRY_TSDB_OPTIONS_BACKEND: sentry.tsdb.redissnuba.RedisSnubaTSDB
     volumes:

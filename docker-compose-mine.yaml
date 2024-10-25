@@ -122,7 +122,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:7a9e286}
     environment: &sentry_env
       SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
       POSTGRES_DB: ${POSTGRES_DB:-sentry}

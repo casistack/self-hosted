@@ -82,7 +82,6 @@ services:
     volumes:
       - sentry-clickhouse:/var/lib/clickhouse
       - sentry-clickhouse-log:/var/log/clickhouse-server
-      - sentry-clickhouse-config:/etc/clickhouse-server/config.d
     healthcheck:
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
@@ -115,31 +114,26 @@ services:
     image: ${SYMBOLICATOR_IMAGE:-getsentry/symbolicator:latest}
     volumes:
       - sentry-symbolicator:/data
-      - sentry-symbolicator-config:/etc/symbolicator
     command: run -c /etc/symbolicator/config.yml
 
   web:
     restart: unless-stopped
-    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
     environment: &sentry_env
-      SENTRY_CONF: /etc/sentry
-      SNUBA: http://snuba-api:1218
-      REDIS_HOST: redis
-      POSTGRES_HOST: postgres
+      SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
       POSTGRES_DB: ${POSTGRES_DB:-sentry}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
-      SENTRY_REDIS_HOST: redis
-      SENTRY_POSTGRES_HOST: postgres
-      SENTRY_EMAIL_HOST: ${SENTRY_EMAIL_HOST:-smtp}
       SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL:-sentry@localhost}
-      SENTRY_EVENT_RETENTION_DAYS: ${SENTRY_EVENT_RETENTION_DAYS:-90}
-      SENTRY_FEATURES: ${SENTRY_FEATURES:-}
-      SENTRY_EXTRA_CONF: ${SENTRY_EXTRA_CONF:-}
+      SENTRY_EVENT_RETENTION_DAYS: ${SENTRY_EVENT_RETENTION_DAYS:-30}
+      SENTRY_FEATURES: ${SENTRY_FEATURES:-organizations:metrics,organizations:performance-view}
+      SENTRY_TSDB: sentry.tsdb.redissnuba.RedisSnubaTSDB
     volumes:
       - sentry-data:/data
-      - sentry-config:/etc/sentry
     expose:
       - "9000"
     healthcheck:
@@ -150,55 +144,69 @@ services:
 
   cron:
     restart: unless-stopped
-    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
     command: run cron
     environment:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - sentry-config:/etc/sentry
 
   worker:
     restart: unless-stopped
-    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
     command: run worker
     environment:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - sentry-config:/etc/sentry
 
   ingest-consumer:
     restart: unless-stopped
-    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
     command: run consumer ingest-events --consumer-group ingest-consumer
     environment:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - sentry-config:/etc/sentry
 
   post-process-forwarder:
     restart: unless-stopped
-    image: ${SENTRY_IMAGE:-getsentry/sentry:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SENTRY_IMAGE: ${SENTRY_IMAGE:-getsentry/sentry:latest}
     command: run consumer post-process-forwarder --consumer-group post-process-forwarder
     environment:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - sentry-config:/etc/sentry
 
   relay:
     restart: unless-stopped
     image: ${RELAY_IMAGE:-getsentry/relay:latest}
-    volumes:
-      - sentry-relay-config:/etc/relay
     expose:
       - "3000"
     environment:
       RELAY_MODE: ${RELAY_MODE:-managed}
       RELAY_UPSTREAM: http://web:9000
       RELAY_HOST: 0.0.0.0
+    volumes:
+      - type: bind
+        source: ./relay
+        target: /etc/relay
 
   # Feature Complete Services
   snuba-replacer:
@@ -249,7 +257,3 @@ volumes:
   sentry-kafka-log:
   sentry-clickhouse-log:
   sentry-vroom:
-  sentry-config:
-  sentry-clickhouse-config:
-  sentry-symbolicator-config:
-  sentry-relay-config:

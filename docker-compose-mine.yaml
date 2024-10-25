@@ -126,8 +126,11 @@ services:
       environment: &sentry_env
         SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
         POSTGRES_DB: ${POSTGRES_DB:-sentry}
+        SENTRY_POSTGRES_DB: ${POSTGRES_DB:-sentry}
         POSTGRES_USER: ${POSTGRES_USER:-postgres}
+        SENTRY_POSTGRES_USER: ${POSTGRES_USER:-postgres}
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+        SENTRY_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
         SENTRY_SERVER_EMAIL: ${SENTRY_SERVER_EMAIL:-sentry@localhost}
         SENTRY_EVENT_RETENTION_DAYS: ${SENTRY_EVENT_RETENTION_DAYS:-30}
         SENTRY_FEATURES: ${SENTRY_FEATURES:-organizations:metrics,organizations:performance-view}

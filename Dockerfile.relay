@@ -1,0 +1,7 @@
+FROM getsentry/relay:latest
+
+# Copy configuration into the image
+COPY relay/config.yml /etc/relay/config.yml
+
+# Set permissions
+RUN chmod 644 /etc/relay/config.yml

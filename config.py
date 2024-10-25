@@ -1,6 +1,7 @@
 from sentry.conf.server import *
 import os
 
+# Database configuration
 DATABASES = {
     "default": {
         "ENGINE": "sentry.db.postgres",
@@ -27,17 +28,35 @@ redis_host = os.getenv('REDIS_HOST', 'redis')
 redis_port = os.getenv('REDIS_PORT', '6379')
 redis_password = os.getenv('REDIS_PASSWORD', '')
 
-SENTRY_OPTIONS["redis.clusters"] = {
-    "default": {
-        "hosts": {
+SENTRY_OPTIONS.update({
+    'redis.clusters': {
+        'default': {
+            'hosts': {
+                0: {
+                    'host': redis_host,
+                    'port': redis_port,
+                    'password': redis_password,
+                    'db': '0',
+                }
+            }
+        }
+    },
+    'redis.options': {
+        'hosts': {
             0: {
-                "host": redis_host,
-                "port": redis_port,
-                "password": redis_password,
+                'host': redis_host,
+                'port': redis_port,
+                'password': redis_password,
             }
         }
     }
-}
+})
+
+# TSDB Configuration (Time-series database)
+SENTRY_TSDB = "sentry.tsdb.redis.RedisTSDB"
+SENTRY_OPTIONS.update({
+    'tsdb.backend': 'sentry.tsdb.redis.RedisTSDB',
+})
 
 # Queue (Celery) configuration
 BROKER_URL = "redis://{}:{}/{}".format(redis_host, redis_port, 0)
@@ -76,11 +95,7 @@ SENTRY_BUFFER = "sentry.buffer.redis.RedisBuffer"
 # Quotas
 SENTRY_QUOTAS = "sentry.quotas.redis.RedisQuota"
 
-# TSDB
-##SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"
-##SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"
-
-# Snuba
+# Search and Snuba
 SENTRY_SEARCH = "sentry.search.snuba.EventsDatasetSnubaSearchBackend"
 SENTRY_SEARCH_OPTIONS = {}
 SENTRY_TAGSTORE_OPTIONS = {}
@@ -89,6 +104,14 @@ SENTRY_TAGSTORE_OPTIONS = {}
 SENTRY_DIGESTS = "sentry.digests.backends.redis.RedisBackend"
 
 # Metrics Backend
+SENTRY_METRICS_BACKEND = "sentry.metrics.redis.RedisMetricsBackend"
+SENTRY_METRICS_OPTIONS = {
+    "host": redis_host,
+    "port": redis_port,
+    "password": redis_password,
+    "db": "1",
+}
+
 SENTRY_RELEASE_HEALTH = "sentry.release_health.metrics.MetricsReleaseHealthBackend"
 SENTRY_RELEASE_MONITOR = "sentry.release_health.release_monitor.metrics.MetricReleaseMonitorBackend"
 
@@ -153,7 +176,7 @@ SENTRY_FEATURES.update(
             "projects:servicehooks",
         )
         + (
-            # Starfish related flags
+            # Additional features
             "organizations:profiling",
             "organizations:performance-view",
             "organizations:dashboards-edit",
@@ -172,6 +195,21 @@ CSP_REPORT_ONLY = True
 # Optional OpenAI Integration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 SENTRY_FEATURES["organizations:open-ai-suggestion"] = bool(OPENAI_API_KEY)
+
+# File storage
+SENTRY_OPTIONS.update({
+    "filestore.backend": "filesystem",
+    "filestore.options": {
+        "location": "/data/files"
+    }
+})
+
+# Symbol storage
+SENTRY_OPTIONS.update({
+    "symbolserver.enabled": True,
+    "dsym.cache-path": "/data/dsym-cache",
+    "releasefile.cache-path": "/data/releasefile-cache",
+})
 
 # Self-hosted settings
 SENTRY_SELF_HOSTED_ERRORS_ONLY = os.getenv("COMPOSE_PROFILES") != "feature-complete"

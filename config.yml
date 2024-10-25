@@ -1,0 +1,14 @@
+system.secret-key: '${SENTRY_SECRET_KEY}'
+system.internal-url-prefix: 'http://web:9000'
+
+mail.backend: 'smtp'
+mail.host: 'smtp'
+mail.from: '${SENTRY_SERVER_EMAIL}'
+
+filestore.backend: 'filesystem'
+filestore.options:
+  location: '/data/files'
+
+symbolicator.enabled: true
+symbolicator.options:
+  url: "http://symbolicator:3021"

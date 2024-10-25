@@ -77,7 +77,8 @@ SENTRY_BUFFER = "sentry.buffer.redis.RedisBuffer"
 SENTRY_QUOTAS = "sentry.quotas.redis.RedisQuota"
 
 # TSDB
-SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"
+##SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"
+SENTRY_TSDB = "sentry.tsdb.redisnuba.RedisSnubaTSDB"
 
 # Snuba
 SENTRY_SEARCH = "sentry.search.snuba.EventsDatasetSnubaSearchBackend"

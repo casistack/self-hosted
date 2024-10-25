@@ -82,7 +82,7 @@ services:
     volumes:
       - sentry-clickhouse:/var/lib/clickhouse
       - sentry-clickhouse-log:/var/log/clickhouse-server
-      - ${CLICKHOUSE_CONFIG_PATH:-./clickhouse/config.xml}:/etc/clickhouse-server/config.d/sentry.xml:ro
+      - sentry-clickhouse-config:/etc/clickhouse-server/config.d
     healthcheck:
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
@@ -115,7 +115,7 @@ services:
     image: ${SYMBOLICATOR_IMAGE:-getsentry/symbolicator:latest}
     volumes:
       - sentry-symbolicator:/data
-      - ${SYMBOLICATOR_CONFIG_PATH:-./symbolicator}:/etc/symbolicator:ro
+      - sentry-symbolicator-config:/etc/symbolicator
     command: run -c /etc/symbolicator/config.yml
 
   web:
@@ -139,7 +139,7 @@ services:
       SENTRY_EXTRA_CONF: ${SENTRY_EXTRA_CONF:-}
     volumes:
       - sentry-data:/data
-      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+      - sentry-config:/etc/sentry
     expose:
       - "9000"
     healthcheck:
@@ -156,7 +156,7 @@ services:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+      - sentry-config:/etc/sentry
 
   worker:
     restart: unless-stopped
@@ -166,7 +166,7 @@ services:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+      - sentry-config:/etc/sentry
 
   ingest-consumer:
     restart: unless-stopped
@@ -176,7 +176,7 @@ services:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+      - sentry-config:/etc/sentry
 
   post-process-forwarder:
     restart: unless-stopped
@@ -186,13 +186,13 @@ services:
       <<: *sentry_env
     volumes:
       - sentry-data:/data
-      - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
+      - sentry-config:/etc/sentry
 
   relay:
     restart: unless-stopped
     image: ${RELAY_IMAGE:-getsentry/relay:latest}
     volumes:
-      - ${RELAY_CONFIG_PATH:-./relay}:/etc/relay:ro
+      - sentry-relay-config:/etc/relay
     expose:
       - "3000"
     environment:
@@ -249,3 +249,7 @@ volumes:
   sentry-kafka-log:
   sentry-clickhouse-log:
   sentry-vroom:
+  sentry-config:
+  sentry-clickhouse-config:
+  sentry-symbolicator-config:
+  sentry-relay-config:

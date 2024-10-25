@@ -1,0 +1,30 @@
+relay:
+  mode: managed
+  upstream: "http://web:9000/"
+  host: 0.0.0.0
+  port: 3000
+  logging:
+    level: INFO
+  processing:
+    enabled: true
+    kafka_config:
+      brokers: ["kafka:9092"]
+    redis: "redis://redis:6379"
+
+limits:
+  max_concurrent_requests: 100
+  max_event_size: 1048576
+  max_api_payload_size: 20971520
+  max_api_file_upload_size: 40971520
+  max_api_chunk_upload_size: 62914560
+  max_thread_count: 8
+
+cache:
+  project_configs: 300
+  project_state: 300
+  relay_state: 300
+
+logging:
+  level: info
+  format: pretty
+  enable_backtraces: true

@@ -140,8 +140,8 @@ services:
     volumes:
       - sentry-data:/data
       - ${SENTRY_CONFIG_PATH:-./sentry}:/etc/sentry:ro
-    ports:
-      - :9000
+    expose:
+      - "9000"
     healthcheck:
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
@@ -193,22 +193,12 @@ services:
     image: ${RELAY_IMAGE:-getsentry/relay:latest}
     volumes:
       - ${RELAY_CONFIG_PATH:-./relay}:/etc/relay:ro
-    ports:
-      - :3000
+    expose:
+      - "3000"
     environment:
       RELAY_MODE: ${RELAY_MODE:-managed}
       RELAY_UPSTREAM: http://web:9000
       RELAY_HOST: 0.0.0.0
-
-  nginx:
-    restart: unless-stopped
-    image: ${NGINX_IMAGE:-nginx:1.25.4-alpine}
-    ports:
-      - :80
-    volumes:
-      - ${NGINX_CONFIG_PATH:-./nginx}:/etc/nginx:ro
-      - sentry-nginx-cache:/var/cache/nginx
-      - sentry-nginx-www:/var/www
 
   # Feature Complete Services
   snuba-replacer:
@@ -258,6 +248,4 @@ volumes:
   sentry-smtp-log:
   sentry-kafka-log:
   sentry-clickhouse-log:
-  sentry-nginx-cache:
-  sentry-nginx-www:
   sentry-vroom:

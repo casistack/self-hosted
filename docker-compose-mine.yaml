@@ -127,6 +127,7 @@ services:
         SENTRY_SECRET_KEY: ${SENTRY_SECRET_KEY}
         POSTGRES_DB: ${POSTGRES_DB:-sentry}
         SENTRY_POSTGRES_DB: ${POSTGRES_DB:-sentry}
+        SENTRY_DB_NAME: ${POSTGRES_DB:-sentry}
         POSTGRES_USER: ${POSTGRES_USER:-postgres}
         SENTRY_POSTGRES_USER: ${POSTGRES_USER:-postgres}
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
